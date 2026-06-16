@@ -262,8 +262,9 @@
 </div>
 
 <script>
-const SUPABASE_URL = 'https://nwonwmrkypbiyggnlsur.supabase.co/functions/v1/whatsapp-send';
-const INTERNAL_SECRET = 't3trainings-n8n-2026';
+const WA_PHONE_ID = '1109976648865684';
+const WA_TOKEN = 'EAAVB0GYy4jQBRvGU4NUwRlosn91OejmNdttVich27WwdwkrVmgeK4uUdSy3ntk786cfUvKLVpbS8GjXwRy7KwQEaZBClpZAlnZB90ewdXj6hm15C3iCiBXCJ8LzRNWnIxFX2J5x8amBbwJVsAqLNX0cPZCqRlLRtcVIkQqGmOZCmdvZCuC4sRZBtZA4ubnSeobsBIgZDZD';
+const WA_API = `https://graph.facebook.com/v25.0/${WA_PHONE_ID}/messages`;
 
 const SHEETS = {
   students: '1RXzBWsCb924bBRSWhM_4v0NIKJWerBWX3chwJvmIlBI',
@@ -306,7 +307,7 @@ function updatePreview() {
 async function loadCounts(seg) {
   const sheetId = SHEETS[seg];
   try {
-    const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=Sheet1`);
+    const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent("https://docs.google.com/spreadsheets/d/" + sheetId + "/gviz/tq?tqx=out:csv&sheet=Sheet1")}`);
     const text = await res.text();
     const rows = text.trim().split('\n').slice(1);
     const total = rows.filter(r => r.trim()).length;
@@ -327,7 +328,7 @@ function showStatus(msg, type) {
 }
 
 async function parseCSV(sheetId) {
-  const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=Sheet1`);
+  const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent("https://docs.google.com/spreadsheets/d/" + sheetId + "/gviz/tq?tqx=out:csv&sheet=Sheet1")}`);
   const text = await res.text();
   const rows = text.trim().split('\n');
   const headers = rows[0].split(',').map(h => h.trim().replace(/"/g,''));
@@ -374,19 +375,27 @@ async function startBroadcast() {
 
     try {
       const params = [c.name, c.var2, c.var3, c.var4].filter(Boolean).map(t => ({ type: 'text', text: t }));
-      const body = {
-        to: c.phone,
-        template_name: template,
-        template_language: 'en_US',
-        components: params.length ? [{ type: 'body', parameters: params }] : []
+      const waBody = {
+        messaging_product: 'whatsapp',
+        to: c.phone.replace(/\D/g, ''),
+        type: 'template',
+        template: {
+          name: template,
+          language: { code: 'en_US' },
+          components: params.length ? [{ type: 'body', parameters: params }] : []
+        }
       };
-
-      const r = await fetch(SUPABASE_URL, {
+      const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(WA_API)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-internal-secret': INTERNAL_SECRET },
-        body: JSON.stringify(body)
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${WA_TOKEN}`
+        },
+        body: JSON.stringify(waBody)
       });
-      if (r.ok) { sent++; sentToday++; } else { failed++; }
+      const rData = await r.json();
+      console.log('WA response:', JSON.stringify(rData));
+      if (r.ok && rData.messages) { sent++; sentToday++; } else { failed++; }
     } catch(e) { failed++; }
 
     await new Promise(res => setTimeout(res, 1200));
