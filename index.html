@@ -245,6 +245,14 @@
   </div>
 
   <!-- Send button -->
+
+  <div class="card">
+    <div class="card-label">Refresh API Token</div>
+    <input type="password" id="token-input" placeholder="Paste new token from Meta API Setup" style="width:100%;padding:10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit;">
+    <button onclick="updateToken()" style="margin-top:8px;width:100%;padding:10px;background:#f0fdf5;color:#15803d;border:1.5px solid #bbf7d0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Save Token</button>
+    <div id="token-status" style="font-size:12px;color:#666;margin-top:6px;"></div>
+  </div>
+
   <button class="send-btn" id="send-btn" onclick="startBroadcast()">
     <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
     <span id="btn-label">Send broadcast</span>
@@ -264,7 +272,7 @@
 
 <script>
 const WA_PHONE_ID = '1109976648865684';
-const WA_TOKEN = 'EAAVB0GYy4jQBRggT6sdJiA6Mqh1ox2ew0EuOZAmAPLZAb14lFnMRZB35fSyI5XhmDno4cZBwMsYxl4IY5m9cRvpZCit29BwfoKWZBdotFbjrjtQSHVcP4ch76YlEoMAGLembMFDEWdFSinmn7nP4WrSvZCQJmSHA0fG7QZBQ1aiWiIlKaoXyoGyjew3B9BkmCSqQmAZDZD';
+let WA_TOKEN = 'EAAVB0GYy4jQBRiaC6vjVQsuG3eY0OP19BwHpy1jYyDB6gyDxxCLJqbaGkoMi9ZBCzWPl6C0LhzmvACNmpPDmKB8EGj1VNSRN2ZCPhC4eqX7bYvXxZC39P7uIbytZAL4rmeYaKzN2Tvf7ohevDJS01uZCPZCiZAETtK9EUQq8IUlcDSGjzZCyByPkhcqlfsZAZAEGJEreuhE8X5LiYcCkJsuWch4QsH7XwAYnPn7ePq4IrlPNJo85HXDxunb3IKE4BkNVmJYtJhv7S1wMnPPsJqXcaZAR7CxD2fyYuOMt5ZBRSwZDZD';
 const WA_API = `https://graph.facebook.com/v25.0/${WA_PHONE_ID}/messages`;
 
 const SHEETS = {
@@ -425,6 +433,21 @@ async function startBroadcast() {
 updatePreview();
 document.getElementById('sheet-link').href = `https://docs.google.com/spreadsheets/d/${SHEETS['students']}`;
 loadCounts('students');
+
+const savedToken = localStorage.getItem('t3_wa_token');
+if (savedToken) { WA_TOKEN = savedToken; }
+
+function updateToken() {
+  const input = document.getElementById('token-input').value.trim();
+  if (!input || input.length < 20) {
+    document.getElementById('token-status').textContent = 'Please paste a valid token.';
+    return;
+  }
+  WA_TOKEN = input;
+  localStorage.setItem('t3_wa_token', input);
+  document.getElementById('token-input').value = '';
+  document.getElementById('token-status').textContent = 'Token saved! Ready to send.';
+}
 </script>
 </body>
 </html>
