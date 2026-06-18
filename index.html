@@ -377,7 +377,8 @@ async function startBroadcast() {
     try {
       const params = [c.name, c.var2, c.var3, c.var4].filter(Boolean).map(t => ({ type: 'text', text: t }));
       const noParamTemplates = ['hello_world'];
-      const langCode = template === 'hello_world' ? 'en_US' : 'en';
+      const enUSTemplates = ['hello_world'];
+      const langCode = enUSTemplates.includes(template) ? 'en_US' : 'en';
       const waBody = {
         messaging_product: 'whatsapp',
         to: c.phone.replace(/\D/g, ''),
