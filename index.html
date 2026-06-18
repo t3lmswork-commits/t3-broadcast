@@ -342,9 +342,18 @@ async function parseCSV(sheetId) {
   const rows = text.trim().split('\n');
   const headers = rows[0].split(',').map(h => h.trim().replace(/"/g,''));
   return rows.slice(1).map(row => {
-    const vals = row.split(',').map(v => v.trim().replace(/"/g,''));
+    // Handle quoted CSV values properly
+    const vals = [];
+    let current = '';
+    let inQuotes = false;
+    for (let ch of row) {
+      if (ch === '"') { inQuotes = !inQuotes; }
+      else if (ch === ',' && !inQuotes) { vals.push(current.trim()); current = ''; }
+      else { current += ch; }
+    }
+    vals.push(current.trim());
     const obj = {};
-    headers.forEach((h, i) => obj[h] = vals[i] || '');
+    headers.forEach((h, i) => obj[h] = (vals[i] || '').replace(/"/g,'').trim());
     return obj;
   }).filter(c => c.phone && c.status === 'pending');
 }
