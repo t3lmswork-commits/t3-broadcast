@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -273,7 +274,7 @@ const WA_PHONE_ID = '1109976648865684';
 let WA_TOKEN = 'EAAVB0GYy4jQBRpIYTBOb04B00k5y09oOtYP6rgiKk8RF10dnRAupWEOuH5LYo58OnViEpZCZCqr8U8hUdbfQrwj6410TQZApFMq1OMskwbxlBQtvBMO9wIxoONwnZAnO7g46MMV2StIjbX8ezwhZBtT0L0kZC4B9Wn8SqvZCgb7vWZAax4pZCEiMEhz4ZAbyxELlmLYlRcZAwbpQKZAP325gIpgiYuiQMtxPBjDiIKQJIEiYJ1ZCuIk4lbajYEU5KehJfAZBErSFt1A44dNwxmiJfrjJAIseXTrD8ulDbmjYDJBAZDZD';
 const WA_API = `https://graph.facebook.com/v25.0/${WA_PHONE_ID}/messages`;
 const SUPABASE_URL = 'https://nwonwmrkypbiyggnlsur.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53b253bXJreXBiaXlnZ25sc3VyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTI3NjM5NjIsImV4cCI6MjAyODMzOTk2Mn0.qkDMgRTfQqKMtX9UXWaAWJXJLGrNPHZmkQlVNJBwsGY';
+const INTERNAL_SECRET = 't3trainings-n8n-2026';
 
 const SHEETS = {
   students:'1RXzBWsCb924bBRSWhM_4v0NIKJWerBWX3chwJvmIlBI',
@@ -459,33 +460,39 @@ async function loadInbox(){
   const list=document.getElementById('inbox-list');
   list.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted)">Loading messages...</div>';
   try{
-    const res=await fetch(`${SUPABASE_URL}/rest/v1/crm_activities?activity_type=eq.whatsapp&order=created_at.desc&limit=20`,{
-      headers:{'apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`}
+    const res=await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-inbox`,{
+      headers:{'x-internal-secret':INTERNAL_SECRET}
     });
+    if(!res.ok) throw new Error('Failed to load inbox ('+res.status+')');
     const data=await res.json();
     if(!data||data.length===0){
       list.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><p>No messages yet</p></div>';
       return;
     }
+    const badge=document.getElementById('inbox-badge');
+    if(badge){badge.textContent=data.length;badge.style.display='inline-flex'}
     list.innerHTML='';
     data.forEach(msg=>{
       const time=new Date(msg.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      const name=msg.crm_contacts?.full_name||'Unknown';
+      const phone=msg.crm_contacts?.phone||'';
+      const text=msg.notes||msg.detail?.body||msg.detail?.text||'';
       const div=document.createElement('div');
       div.className='inbox-msg';
       div.innerHTML=`
         <div class="inbox-header">
-          <div><div class="inbox-name">${msg.subject||'Message'}</div><div class="inbox-phone">${msg.metadata?.phone||''}</div></div>
+          <div><div class="inbox-name">${name}</div><div class="inbox-phone">${phone}</div></div>
           <div class="inbox-time">${time}</div>
         </div>
-        <div class="inbox-text">${msg.body||''}</div>
+        <div class="inbox-text">${text}</div>
         <div class="reply-row">
           <input class="reply-input" placeholder="Type reply..." id="reply-${msg.id}">
-          <button class="reply-btn" onclick="sendReply('${msg.metadata?.phone||''}','reply-${msg.id}')">Send</button>
+          <button class="reply-btn" onclick="sendReply('${phone}','reply-${msg.id}')">Send</button>
         </div>`;
       list.appendChild(div);
     });
   }catch(e){
-    list.innerHTML='<div class="empty-state"><p>Could not load inbox. Check your connection.</p></div>';
+    list.innerHTML='<div class="empty-state"><p>Could not load inbox. '+e.message+'</p></div>';
   }
 }
 
