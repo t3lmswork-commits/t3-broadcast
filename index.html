@@ -319,6 +319,11 @@ let WRITEBACK_URL = '';
 let WRITEBACK_SECRET = '';
 let CORS_KEY = '';
 
+// Sends use ?access_token=... in the URL instead of an Authorization header - corsproxy.io
+// was dropping/mangling the Authorization header on POST requests, which made every send
+// fail with a misleading "Object with ID does not exist" error from Meta (confirmed by the
+// same token/phone ID working fine when sent directly from Meta's own API Setup page).
+// Graph API explicitly supports the access_token query param as an equivalent to the header.
 const WA_API = `https://graph.facebook.com/v25.0/${WA_PHONE_ID}/messages`;
 const SUPABASE_URL = 'https://nwonwmrkypbiyggnlsur.supabase.co';
 
@@ -524,9 +529,9 @@ async function startBroadcast() {
         };
       }
 
-      const r=await fetch(corsProxy(WA_API),{
+      const r=await fetch(corsProxy(WA_API+'?access_token='+encodeURIComponent(WA_TOKEN)),{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${WA_TOKEN}`},
+        headers:{'Content-Type':'application/json'},
         body:JSON.stringify(waBody)
       });
       const rData=await r.json();
@@ -656,9 +661,9 @@ async function sendReply(phone,inputId){
   if(!text)return;
   input.disabled=true;
   try{
-    const r=await fetch(corsProxy(WA_API),{
+    const r=await fetch(corsProxy(WA_API+'?access_token='+encodeURIComponent(WA_TOKEN)),{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${WA_TOKEN}`},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({messaging_product:'whatsapp',to:phone.replace(/\D/g,''),type:'text',text:{body:text}})
     });
     const d=await r.json();
