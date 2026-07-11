@@ -386,9 +386,12 @@ CORS_KEY = localStorage.getItem('t3_cors_key') || '';
 
 function checkSetup() {
   const banner = document.getElementById('setup-banner');
-  const missing = !WA_TOKEN || !SUPABASE_SECRET || !WRITEBACK_URL || !WRITEBACK_SECRET || !CORS_KEY;
+  // WA_TOKEN is no longer required here — sending now routes through the
+  // whatsapp-send Supabase function (server-side token), gated on
+  // SUPABASE_SECRET instead. The token field/setting can stay unused/legacy.
+  const missing = !SUPABASE_SECRET || !WRITEBACK_URL || !WRITEBACK_SECRET || !CORS_KEY;
   banner.style.display = missing ? 'block' : 'none';
-  document.getElementById('send-btn').disabled = !WA_TOKEN;
+  document.getElementById('send-btn').disabled = !SUPABASE_SECRET;
 }
 checkSetup();
 
@@ -488,7 +491,7 @@ async function markSent(sheetId, phone) {
 }
 
 async function startBroadcast() {
-  if (!WA_TOKEN) { showStatus('Add your WhatsApp token in Settings first.', 'error'); return; }
+  if (!SUPABASE_SECRET) { showStatus('Add your Supabase inbox secret in Settings first.', 'error'); return; }
 
   const btn=document.getElementById('send-btn');
   const label=document.getElementById('btn-label');
@@ -518,11 +521,14 @@ async function startBroadcast() {
     label.textContent=`${i+1} of ${contacts.length}`;
 
     try{
-      let waBody;
+      // Routed through our own whatsapp-send function (server-side token) instead
+      // of calling Meta's API directly from the browser via a public CORS proxy
+      // with the raw access token exposed in a URL param.
+      let sendBody;
       if(messageMode==='custom'){
         // Custom text message (only works in 24hr window)
         const msg = customText.replace(/\[name\]/gi, c.name||'there');
-        waBody={messaging_product:'whatsapp',to:c.phone.replace(/\D/g,''),type:'text',text:{body:msg}};
+        sendBody={to:c.phone.replace(/\D/g,''),custom_message:msg};
       } else {
         // Template message. {{1}} is always the per-contact name from the sheet. Templates
         // that need more variables (e.g. pmp_batch_announcement needs {{2}} start date and
@@ -533,26 +539,22 @@ async function startBroadcast() {
         const enUS=['hello_world'];
         const tmplVar2=document.getElementById('tmpl-var2').value.trim();
         const tmplVar3=document.getElementById('tmpl-var3').value.trim();
-        const params=[c.name,tmplVar2,tmplVar3].filter(Boolean).map(t=>({type:'text',text:t}));
-        waBody={
-          messaging_product:'whatsapp',
+        const params=[c.name,tmplVar2,tmplVar3].filter(Boolean);
+        sendBody={
           to:c.phone.replace(/\D/g,''),
-          type:'template',
-          template:{
-            name:template,
-            language:{code:enUS.includes(template)?'en_US':'en'},
-            components:(!noParams.includes(template)&&params.length)?[{type:'body',parameters:params}]:[]
-          }
+          template_name:template,
+          template_language:enUS.includes(template)?'en_US':'en',
+          template_params:(!noParams.includes(template)&&params.length)?params:[]
         };
       }
 
-      const r=await fetch(corsProxy(WA_API+'?access_token='+encodeURIComponent(WA_TOKEN)),{
+      const r=await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`,{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(waBody)
+        headers:{'Content-Type':'application/json','x-internal-secret':SUPABASE_SECRET},
+        body:JSON.stringify(sendBody)
       });
       const rData=await r.json();
-      if(r.ok&&rData.messages){
+      if(r.ok&&rData.ok){
         sent++;sentToday++;
         const wb = await markSent(SHEETS[selectedSeg], c.phone);
         if(!wb.success) { writebackFailed++; console.error('Writeback failed:', c.phone, wb.error); }
@@ -672,19 +674,22 @@ async function loadInbox(){
 }
 
 async function sendReply(phone,inputId){
-  if (!WA_TOKEN) { alert('Add your WhatsApp token in Settings first.'); return; }
+  if (!SUPABASE_SECRET) { alert('Add your Supabase inbox secret in Settings first.'); return; }
   const input=document.getElementById(inputId);
   const text=input.value.trim();
   if(!text)return;
   input.disabled=true;
   try{
-    const r=await fetch(corsProxy(WA_API+'?access_token='+encodeURIComponent(WA_TOKEN)),{
+    // Routed through our own whatsapp-send function (server-side token) instead
+    // of calling Meta's API directly from the browser via a public CORS proxy
+    // with the raw access token exposed in a URL param.
+    const r=await fetch(`${SUPABASE_URL}/functions/v1/whatsapp-send`,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({messaging_product:'whatsapp',to:phone.replace(/\D/g,''),type:'text',text:{body:text}})
+      headers:{'Content-Type':'application/json','x-internal-secret':SUPABASE_SECRET},
+      body:JSON.stringify({to:phone.replace(/\D/g,''),custom_message:text})
     });
     const d=await r.json();
-    if(d.messages){input.value='';input.placeholder='Sent ✓';}
+    if(d.ok){input.value='';input.placeholder='Sent ✓';}
     else{input.disabled=false;input.placeholder='Failed - try again';}
   }catch(e){input.disabled=false;}
 }
