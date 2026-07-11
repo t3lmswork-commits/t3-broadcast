@@ -423,6 +423,12 @@ function showStatus(msg,type){
 async function parseCSV(sheetId) {
   const res = await fetch(corsProxy('https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:csv&sheet=Sheet1'));
   const text = await res.text();
+  // Detect a proxy/HTTP error disguised as a 200 response body (e.g. corsproxy.io returns
+  // {"error":"..."} with its own 200/4xx status) instead of silently parsing it as empty CSV.
+  const looksLikeJsonError = text.trim().startsWith('{') && /error/i.test(text);
+  if (!res.ok || looksLikeJsonError) {
+    throw new Error(`Proxy/sheet error (HTTP ${res.status}): ${text.slice(0,200)}`);
+  }
   const rows = text.trim().split('\n');
   const headers = rows[0].split(',').map(h=>h.trim().replace(/"/g,''));
   return rows.slice(1).map(row=>{
@@ -473,7 +479,7 @@ async function startBroadcast() {
 
   let contacts=[];
   try{contacts=await parseCSV(SHEETS[selectedSeg]);}
-  catch(e){showStatus('Could not read sheet. Make sure it is shared publicly.','error');btn.disabled=false;label.textContent='Send broadcast';return;}
+  catch(e){showStatus('Could not read sheet: '+e.message,'error');btn.disabled=false;label.textContent='Send broadcast';console.error('parseCSV failed:',e);return;}
 
   if(contacts.length===0){showStatus('No pending contacts in this segment.','error');btn.disabled=false;label.textContent='Send broadcast';return;}
 
