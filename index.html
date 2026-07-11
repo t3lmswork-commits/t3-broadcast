@@ -160,6 +160,17 @@ textarea:focus{outline:none;border-color:var(--green)}
         <div class="preview-lbl">Preview</div>
         <div id="preview-text"></div>
       </div>
+      <div id="tmpl-vars-wrap" style="margin-top:10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Some templates need extra details filled in once - these apply to every contact in this broadcast (only [name] is pulled per-contact from the sheet):</div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">Variable 2 (e.g. start date)</div>
+          <input type="text" id="tmpl-var2" placeholder="e.g. July 1 2026">
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">Variable 3 (e.g. schedule)</div>
+          <input type="text" id="tmpl-var3" placeholder="e.g. Weekends 10AM-2PM">
+        </div>
+      </div>
     </div>
 
     <div id="custom-mode" style="display:none">
@@ -351,7 +362,7 @@ const SHEETS = {
 };
 
 const PREVIEWS = {
-  pmp_batch_announcement:'Hi [name], T3 Trainings is opening a new PMP batch! Start: [date] · Schedule: [time] · Live online via Zoom. Reply YES to reserve your spot.',
+  pmp_batch_announcement:'Hi [name], T3 Trainings is opening a new PMP Certification batch! Start date: [var2] · Schedule: [var3] · Mode: Live online via Zoom. As a PMI Authorized Training Partner with 9 years of experience, we guarantee exam-ready preparation. Seats are limited. Reply YES to reserve your spot or visit lms.t3trainings.com to enroll.',
   corporate_training_offer:'Hi [name], looking to upskill your team in PM or Cybersecurity? T3 offers PMP, CAPM, CISSP, CISM & ISO 27001. Reply INTERESTED for a custom proposal.',
   exam_prep_reminder:'Hi [name], your PMP exam is on [date]! Today topic: [topic]. Target: [count] practice questions. Login to your dashboard.',
   diagnostic_followup:'Hi [name], this is Imran from T3 Trainings. You completed the free PMP diagnostic! Reply YES for batch details.',
@@ -513,10 +524,16 @@ async function startBroadcast() {
         const msg = customText.replace(/\[name\]/gi, c.name||'there');
         waBody={messaging_product:'whatsapp',to:c.phone.replace(/\D/g,''),type:'text',text:{body:msg}};
       } else {
-        // Template message
+        // Template message. {{1}} is always the per-contact name from the sheet. Templates
+        // that need more variables (e.g. pmp_batch_announcement needs {{2}} start date and
+        // {{3}} schedule) get those from the "Variable 2"/"Variable 3" fields above, which
+        // apply to every contact in this broadcast - those values aren't per-contact sheet
+        // columns, they're typed once before sending.
         const noParams=['hello_world'];
         const enUS=['hello_world'];
-        const params=[c.name,c.var2,c.var3,c.var4].filter(Boolean).map(t=>({type:'text',text:t}));
+        const tmplVar2=document.getElementById('tmpl-var2').value.trim();
+        const tmplVar3=document.getElementById('tmpl-var3').value.trim();
+        const params=[c.name,tmplVar2,tmplVar3].filter(Boolean).map(t=>({type:'text',text:t}));
         waBody={
           messaging_product:'whatsapp',
           to:c.phone.replace(/\D/g,''),
