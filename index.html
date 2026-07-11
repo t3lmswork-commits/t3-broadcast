@@ -324,11 +324,15 @@ const SUPABASE_URL = 'https://nwonwmrkypbiyggnlsur.supabase.co';
 
 // Builds a corsproxy.io URL. If a paid-plan API key is configured, includes it so requests
 // aren't rejected once the domain is registered on a production (non-free) corsproxy plan.
+// Always appends a cache-busting param - browsers/CDNs can otherwise cache a GET response
+// (including an old error response from before setup was finished) and keep replaying it
+// against this exact URL indefinitely.
 function corsProxy(targetUrl) {
   const encoded = encodeURIComponent(targetUrl);
+  const cacheBust = `_cb=${Date.now()}`;
   return CORS_KEY
-    ? `https://corsproxy.io/?key=${encodeURIComponent(CORS_KEY)}&url=${encoded}`
-    : `https://corsproxy.io/?url=${encoded}`;
+    ? `https://corsproxy.io/?key=${encodeURIComponent(CORS_KEY)}&${cacheBust}&url=${encoded}`
+    : `https://corsproxy.io/?${cacheBust}&url=${encoded}`;
 }
 
 const SHEETS = {
@@ -402,7 +406,7 @@ function updatePreview() {
 
 async function loadCounts(seg) {
   try {
-    const res = await fetch(corsProxy('https://docs.google.com/spreadsheets/d/'+SHEETS[seg]+'/gviz/tq?tqx=out:csv&sheet=Sheet1'));
+    const res = await fetch(corsProxy('https://docs.google.com/spreadsheets/d/'+SHEETS[seg]+'/gviz/tq?tqx=out:csv&sheet=Sheet1'), {cache:'no-store'});
     const text = await res.text();
     const rows = text.trim().split('\n').slice(1).filter(r=>r.trim());
     const pending = rows.filter(r=>r.includes('pending')).length;
@@ -421,7 +425,7 @@ function showStatus(msg,type){
 }
 
 async function parseCSV(sheetId) {
-  const res = await fetch(corsProxy('https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:csv&sheet=Sheet1'));
+  const res = await fetch(corsProxy('https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:csv&sheet=Sheet1'), {cache:'no-store'});
   const text = await res.text();
   // Detect a proxy/HTTP error disguised as a 200 response body (e.g. corsproxy.io returns
   // {"error":"..."} with its own 200/4xx status) instead of silently parsing it as empty CSV.
