@@ -233,11 +233,18 @@ textarea:focus{outline:none;border-color:var(--green)}
       <div id="writeback-url-status" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
     </div>
 
-    <div>
+    <div style="margin-bottom:10px">
       <div style="font-size:12px;font-weight:600;margin-bottom:5px">Sheet writeback secret</div>
       <input type="password" id="writeback-secret-input" placeholder="Matches WRITEBACK_SECRET in Code.gs">
       <button class="token-btn" onclick="updateWritebackSecret()">Save</button>
       <div id="writeback-secret-status" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
+    </div>
+
+    <div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:5px">CORS proxy API key (corsproxy.io)</div>
+      <input type="password" id="cors-key-input" placeholder="Paste key from console.corsproxy.io">
+      <button class="token-btn" onclick="updateCorsKey()">Save</button>
+      <div id="cors-key-status" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
     </div>
   </div>
 
@@ -310,9 +317,19 @@ let WA_TOKEN = '';
 let SUPABASE_SECRET = '';
 let WRITEBACK_URL = '';
 let WRITEBACK_SECRET = '';
+let CORS_KEY = '';
 
 const WA_API = `https://graph.facebook.com/v25.0/${WA_PHONE_ID}/messages`;
 const SUPABASE_URL = 'https://nwonwmrkypbiyggnlsur.supabase.co';
+
+// Builds a corsproxy.io URL. If a paid-plan API key is configured, includes it so requests
+// aren't rejected once the domain is registered on a production (non-free) corsproxy plan.
+function corsProxy(targetUrl) {
+  const encoded = encodeURIComponent(targetUrl);
+  return CORS_KEY
+    ? `https://corsproxy.io/?key=${encodeURIComponent(CORS_KEY)}&url=${encoded}`
+    : `https://corsproxy.io/?url=${encoded}`;
+}
 
 const SHEETS = {
   students:'1RXzBWsCb924bBRSWhM_4v0NIKJWerBWX3chwJvmIlBI',
@@ -342,10 +359,11 @@ WA_TOKEN = localStorage.getItem('t3_wa_token') || '';
 SUPABASE_SECRET = localStorage.getItem('t3_supabase_secret') || '';
 WRITEBACK_URL = localStorage.getItem('t3_writeback_url') || '';
 WRITEBACK_SECRET = localStorage.getItem('t3_writeback_secret') || '';
+CORS_KEY = localStorage.getItem('t3_cors_key') || '';
 
 function checkSetup() {
   const banner = document.getElementById('setup-banner');
-  const missing = !WA_TOKEN || !SUPABASE_SECRET || !WRITEBACK_URL || !WRITEBACK_SECRET;
+  const missing = !WA_TOKEN || !SUPABASE_SECRET || !WRITEBACK_URL || !WRITEBACK_SECRET || !CORS_KEY;
   banner.style.display = missing ? 'block' : 'none';
   document.getElementById('send-btn').disabled = !WA_TOKEN;
 }
@@ -384,7 +402,7 @@ function updatePreview() {
 
 async function loadCounts(seg) {
   try {
-    const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent('https://docs.google.com/spreadsheets/d/'+SHEETS[seg]+'/gviz/tq?tqx=out:csv&sheet=Sheet1')}`);
+    const res = await fetch(corsProxy('https://docs.google.com/spreadsheets/d/'+SHEETS[seg]+'/gviz/tq?tqx=out:csv&sheet=Sheet1'));
     const text = await res.text();
     const rows = text.trim().split('\n').slice(1).filter(r=>r.trim());
     const pending = rows.filter(r=>r.includes('pending')).length;
@@ -403,7 +421,7 @@ function showStatus(msg,type){
 }
 
 async function parseCSV(sheetId) {
-  const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent('https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:csv&sheet=Sheet1')}`);
+  const res = await fetch(corsProxy('https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:csv&sheet=Sheet1'));
   const text = await res.text();
   const rows = text.trim().split('\n');
   const headers = rows[0].split(',').map(h=>h.trim().replace(/"/g,''));
@@ -493,7 +511,7 @@ async function startBroadcast() {
         };
       }
 
-      const r=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(WA_API)}`,{
+      const r=await fetch(corsProxy(WA_API),{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${WA_TOKEN}`},
         body:JSON.stringify(waBody)
@@ -564,6 +582,16 @@ function updateWritebackSecret(){
   checkSetup();
 }
 
+function updateCorsKey(){
+  const input=document.getElementById('cors-key-input').value.trim();
+  if(!input){document.getElementById('cors-key-status').textContent='Please paste a value.';return;}
+  CORS_KEY=input;
+  localStorage.setItem('t3_cors_key',input);
+  document.getElementById('cors-key-input').value='';
+  document.getElementById('cors-key-status').textContent='✓ Saved!';
+  checkSetup();
+}
+
 async function loadInbox(){
   const list=document.getElementById('inbox-list');
   if(!SUPABASE_SECRET){
@@ -615,7 +643,7 @@ async function sendReply(phone,inputId){
   if(!text)return;
   input.disabled=true;
   try{
-    const r=await fetch(`https://corsproxy.io/?url=${encodeURIComponent(WA_API)}`,{
+    const r=await fetch(corsProxy(WA_API),{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${WA_TOKEN}`},
       body:JSON.stringify({messaging_product:'whatsapp',to:phone.replace(/\D/g,''),type:'text',text:{body:text}})
