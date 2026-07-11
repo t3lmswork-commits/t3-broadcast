@@ -324,15 +324,18 @@ const SUPABASE_URL = 'https://nwonwmrkypbiyggnlsur.supabase.co';
 
 // Builds a corsproxy.io URL. If a paid-plan API key is configured, includes it so requests
 // aren't rejected once the domain is registered on a production (non-free) corsproxy plan.
-// Always appends a cache-busting param - browsers/CDNs can otherwise cache a GET response
-// (including an old error response from before setup was finished) and keep replaying it
-// against this exact URL indefinitely.
+// The cache-busting param is embedded INSIDE the target URL (before encoding), not as a
+// sibling corsproxy.io query param - corsproxy caches responses server-side keyed on the
+// decoded target URL, so a "_cb" param outside "url=" gets ignored by their cache and can
+// still replay a stale response. Google's Sheets endpoint ignores the unknown extra param,
+// so this is a no-op for the actual request but forces corsproxy to treat it as a fresh URL.
 function corsProxy(targetUrl) {
-  const encoded = encodeURIComponent(targetUrl);
-  const cacheBust = `_cb=${Date.now()}`;
+  const sep = targetUrl.includes('?') ? '&' : '?';
+  const bustedTarget = `${targetUrl}${sep}_cb=${Date.now()}`;
+  const encoded = encodeURIComponent(bustedTarget);
   return CORS_KEY
-    ? `https://corsproxy.io/?key=${encodeURIComponent(CORS_KEY)}&${cacheBust}&url=${encoded}`
-    : `https://corsproxy.io/?${cacheBust}&url=${encoded}`;
+    ? `https://corsproxy.io/?key=${encodeURIComponent(CORS_KEY)}&url=${encoded}`
+    : `https://corsproxy.io/?url=${encoded}`;
 }
 
 const SHEETS = {
